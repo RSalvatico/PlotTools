@@ -1,5 +1,5 @@
 Variable, nbins, xmin, xmax
-score_tt_Wcb, 100, 0., 1.
+score_tt_Wcb, 20, 0., 1.
 score_ttLF, 20, 0., 1.
 score_ttcj, 20, 0., 1.
 score_ttbb, 20, 0., 1.

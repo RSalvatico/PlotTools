@@ -3,12 +3,13 @@ import argparse
 import glob
 import csv
 import os
+import sys
 from colorama import Fore, Style 
 import numpy as np
 
 ROOT.ROOT.EnableImplicitMT()
 
-def process_trees(input_files, output_files, tree_name, hist_configs, year, selections, eventClassification):
+def process_trees(input_files, output_files, tree_name, hist_configs, year, selections, eventClassification, use5FS):
     """
     Processes multiple TTrees, converts them to multiple TH1Ds for specified branches, and saves them to ROOT files.
 
@@ -20,7 +21,9 @@ def process_trees(input_files, output_files, tree_name, hist_configs, year, sele
     - year: Year of data taking.
     - selections: String containing common event preselection.
     - eventClassification: Boolean indicating whether to apply event classification.
+    - use5FS: Boolean indicating whether to use 5-flavor scheme MC for ttbb and ttbj processes.
     """
+    print("")
     if not (len(input_files) == len(output_files)):
         raise ValueError("Input files and output files must have the same length.")
 
@@ -44,11 +47,11 @@ def process_trees(input_files, output_files, tree_name, hist_configs, year, sele
         if eventClassification:
             print(f"{Fore.YELLOW}Running in event classification mode. Will define a series of fractional scores.{Style.RESET_ALL}")
             # Define the fractional scores
-            df = df.Define("fscore_ttbb", "score_ttbb / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)")
-            df = df.Define("fscore_ttbj", "score_ttbj / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)")
-            df = df.Define("fscore_ttcc", "score_ttcc / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)")
-            df = df.Define("fscore_ttcj", "score_ttcj / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)")
-            df = df.Define("fscore_ttLF", "score_ttLF / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)")
+            df = df.Define("fscore_ttbb", "score_ttbb / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)") \
+                .Define("fscore_ttbj", "score_ttbj / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)") \
+                .Define("fscore_ttcc", "score_ttcc / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)") \
+                .Define("fscore_ttcj", "score_ttcj / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)") \
+                .Define("fscore_ttLF", "score_ttLF / (score_ttbb + score_ttbj + score_ttcc + score_ttcj + score_ttLF)")
         else:
             df = df.Define("ak4_1_pt", "ak4_pt.size() > 0 ? ak4_pt[0] : 0") \
                 .Define("ak4_1_phi",   "ak4_phi.size() > 0 ? ak4_phi[0] : 0") \
@@ -73,15 +76,22 @@ def process_trees(input_files, output_files, tree_name, hist_configs, year, sele
         # Process each selection-output combinations
         for selection_name in selections:
 
-            # Apply base selection to every sample; apply the ttbar-specific selection to the right 4f and powheg samples
+            # Apply base selection to every sample; apply the ttbar-specific selection to the right 4F, dps, and 5F powheg samples
             if not "base" in selection_name and not any(x in infile for x in tt_file_names): 
                 continue
             if any(x in infile for x in tt_file_names) and "base" in selection_name:
                 continue
-            if any(x in selection_name for x in tt4f_strings) and not "bb" in infile:
-                continue
-            if any(x in selection_name for x in tt_strings) and not "powheg" in infile:
-                continue
+            if use5FS: # "ttbb", "ttbj" -> both powheg and dps samples; "ttcc", "ttcj", "ttLF" --> only powheg
+                if any(x in selection_name for x in tt4f_strings) and not ("powheg" in infile or "dps" in infile):
+                    continue
+                if any(x in selection_name for x in tt_strings) and not "powheg" in infile: 
+                    continue
+            else:
+                if any(x in selection_name for x in tt4f_strings) and not "bb" in infile:
+                    continue
+                if any(x in selection_name for x in tt_strings) and not "powheg" in infile:
+                    continue
+
         
             # Produce output file
             tt_outfile_name = outfile.replace('.root','_'+selection_name+'.root')
@@ -120,11 +130,11 @@ def process_trees(input_files, output_files, tree_name, hist_configs, year, sele
                 }
                 adhoc_binning = {
                     "score_tt_Wcb" : np.array([0.,0.9,1.]),
-                    "fscore_ttbb"  : np.array([0.,0.5,0.7,1.]),
-                    "fscore_ttbj"  : np.array([0.,0.4,0.5,1.]),
-                    "fscore_ttcc"  : np.array([0.,0.3,1.]),
-                    "fscore_ttcj"  : np.array([0.,0.4,1.]),
-                    "fscore_ttLF"  : np.array([0.,0.1,0.4,1.]),
+                    "fscore_ttbb"  : np.array([0.,0,0.7,1.]),
+                    "fscore_ttbj"  : np.array([0.,0.45,1.]),
+                    "fscore_ttcc"  : np.array([0.,0.45,1.]),
+                    "fscore_ttcj"  : np.array([0.,0.35,1.]),
+                    "fscore_ttLF"  : np.array([0.,0.1,1.]),
                 }
 
             # Create histograms for each branch
@@ -249,7 +259,9 @@ if __name__ == "__main__":
     parser.add_argument("--electron", nargs="?", const=1, type=bool, default=False, required=False, help="Process electron channel only.")
     parser.add_argument("--muon", nargs="?", const=1, type=bool, default=False, required=False, help="Process muon channel only.")
     parser.add_argument("--add_selection", type=str, required=False, help="Additional selection to apply to all processes.")
+    parser.add_argument("--event_counting_file", type=str, required=False, help="File to save event counts for each selection.")
     parser.add_argument("--eventClassification", nargs="?", const=1, type=bool, default=False, required=False, help="Apply event classification selection.")
+    parser.add_argument("--use5FS", nargs="?", const=1, type=bool, default=False, required=False, help="Use 5-flavor scheme.")
 
     args = parser.parse_args()
 
@@ -286,23 +298,34 @@ if __name__ == "__main__":
     if args.muon:
         selections["base"] += " && passTrigMu"
 
+    use5FS = False
+    if args.use5FS:
+        use5FS = True
+        print(f"{Fore.GREEN}Using 5-flavor scheme for ttbb and ttbj processes.{Style.RESET_ALL}")
+
     # Apply additional selections if specified
     if args.add_selection:
         for key in selections.keys():
             selections[key] += f" && ({args.add_selection})"
 
-    process_trees(input_files, output_files, args.tree_name, hist_configs, args.year, selections, args.eventClassification)
+    process_trees(input_files, output_files, args.tree_name, hist_configs, args.year, selections, args.eventClassification, use5FS)
 
     # Merge some of the output files
     ttV_list = ["h_ttW.root", "h_ttZ.root"]
     merge_files(args.output_dir, ttV_list, "h_ttV.root")
     ttH_list = ["h_ttHbb.root", "h_ttHcc.root", "h_ttV.root"]
     merge_files(args.output_dir, ttH_list, "h_ttH-ttV.root")
-    ttbb_list = ["h_ttbb-4f_ttbb.root", "h_ttbb-dps_ttbb.root"]
-    merge_files(args.output_dir, ttbb_list, "h_ttbb-withDPS.root")
-    ttbj_list = ["h_ttbb-4f_ttbj.root", "h_ttbb-dps_ttbj.root"]
-    merge_files(args.output_dir, ttbj_list, "h_ttbj-withDPS.root")
-    ttbb_list = ["h_TWZ.root", "h_diboson.root"]
-    merge_files(args.output_dir, ttbb_list, "h_diboson-tWZ.root")
+    if use5FS:
+        ttbb_list = ["h_ttbar-powheg_ttbb.root", "h_ttbb-dps_ttbb.root"]
+        merge_files(args.output_dir, ttbb_list, "h_ttbb-withDPS.root")
+        ttbj_list = ["h_ttbar-powheg_ttbj.root", "h_ttbb-dps_ttbj.root"]
+        merge_files(args.output_dir, ttbj_list, "h_ttbj-withDPS.root")
+    else:
+        ttbb_list = ["h_ttbb-4f_ttbb.root", "h_ttbb-dps_ttbb.root"]
+        merge_files(args.output_dir, ttbb_list, "h_ttbb-withDPS.root")
+        ttbj_list = ["h_ttbb-4f_ttbj.root", "h_ttbb-dps_ttbj.root"]
+        merge_files(args.output_dir, ttbj_list, "h_ttbj-withDPS.root")
+    diboson_list = ["h_TWZ.root", "h_diboson.root"]
+    merge_files(args.output_dir, diboson_list, "h_diboson-tWZ.root")
     data_list = ["h_singlee.root", "h_singlemu.root"]
     merge_files(args.output_dir, data_list, "h_Data.root")

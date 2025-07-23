@@ -1,2 +1,2 @@
 #!/bin/sh
-python3 plotter.py --input_dir histos_16062025/ --output_dir plots_16062025/ --sig_norm 100 --input_csv hconfig.csv --log
+python3 plotter.py --input_dir histos_07072025/ --output_dir plots_07072025/ --sig_norm 100 --input_csv hconfig_fscores.csv
