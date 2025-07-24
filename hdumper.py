@@ -117,25 +117,28 @@ def process_trees(input_files, output_files, tree_name, hist_configs, year, sele
 
             # Define event classification for the dedicated mode
             if eventClassification:
-                eventClassificationBaseSelection = "score_tt_Wcb > 0.6 && score_ttLF < 0.05"
-                SR_selection = "score_tt_Wcb > 0.85"
-                CR_selection = "score_tt_Wcb < 0.85"
-                adhoc_selection = {
-                    "score_tt_Wcb" : f"{eventClassificationBaseSelection} && {SR_selection}",
-                    "fscore_ttbb"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttbb']} * score_ttbb > {evtClassification_weights['ttbj']} * score_ttbj && {evtClassification_weights['ttbb']} * score_ttbb > {evtClassification_weights['ttcc']} * score_ttcc && {evtClassification_weights['ttbb']} * score_ttbb > {evtClassification_weights['ttcj']} * score_ttcj && {evtClassification_weights['ttbb']} * score_ttbb > {evtClassification_weights['ttLF']} * score_ttLF",
-                    "fscore_ttbj"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttbj']} * score_ttbj > {evtClassification_weights['ttbb']} * score_ttbb && {evtClassification_weights['ttbj']} * score_ttbj > {evtClassification_weights['ttcc']} * score_ttcc && {evtClassification_weights['ttbj']} * score_ttbj > {evtClassification_weights['ttcj']} * score_ttcj && {evtClassification_weights['ttbj']} * score_ttbj > {evtClassification_weights['ttLF']} * score_ttLF",
-                    "fscore_ttcc"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttcc']} * score_ttcc > {evtClassification_weights['ttbb']} * score_ttbb && {evtClassification_weights['ttcc']} * score_ttcc > {evtClassification_weights['ttbj']} * score_ttbj && {evtClassification_weights['ttcc']} * score_ttcc > {evtClassification_weights['ttcj']} * score_ttcj && {evtClassification_weights['ttcc']} * score_ttcc > {evtClassification_weights['ttLF']} * score_ttLF",
-                    "fscore_ttcj"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttcj']} * score_ttcj > {evtClassification_weights['ttbb']} * score_ttbb && {evtClassification_weights['ttcj']} * score_ttcj > {evtClassification_weights['ttbj']} * score_ttbj && {evtClassification_weights['ttcj']} * score_ttcj > {evtClassification_weights['ttcc']} * score_ttcc && {evtClassification_weights['ttcj']} * score_ttcj > {evtClassification_weights['ttLF']} * score_ttLF",
-                    "fscore_ttLF"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttLF']} * score_ttLF > {evtClassification_weights['ttbb']} * score_ttbb && {evtClassification_weights['ttLF']} * score_ttLF > {evtClassification_weights['ttbj']} * score_ttbj && {evtClassification_weights['ttLF']} * score_ttLF > {evtClassification_weights['ttcc']} * score_ttcc && {evtClassification_weights['ttLF']} * score_ttLF > {evtClassification_weights['ttcj']} * score_ttcj"
-                }
-                adhoc_binning = {
-                    "score_tt_Wcb" : np.array([0.,0.9,1.]),
-                    "fscore_ttbb"  : np.array([0.,0,0.7,1.]),
-                    "fscore_ttbj"  : np.array([0.,0.45,1.]),
-                    "fscore_ttcc"  : np.array([0.,0.45,1.]),
-                    "fscore_ttcj"  : np.array([0.,0.35,1.]),
-                    "fscore_ttLF"  : np.array([0.,0.1,1.]),
-                }
+                from weights_and_constants import adhoc_selection, adhoc_binning
+                adhoc_selection = adhoc_selection.copy()
+                adhoc_binning = adhoc_binning.copy()
+                #eventClassificationBaseSelection = "score_tt_Wcb > 0.6 && score_ttLF < 0.05"
+                #SR_selection = "score_tt_Wcb > 0.85"
+                #CR_selection = "score_tt_Wcb < 0.85"
+                #adhoc_selection = {
+                #    "score_tt_Wcb" : f"{eventClassificationBaseSelection} && {SR_selection}",
+                #    "fscore_ttbb"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttbb']} * score_ttbb > {evtClassification_weights['ttbj']} * score_ttbj && {evtClassification_weights['ttbb']} * score_ttbb > {evtClassification_weights['ttcc']} * score_ttcc && {evtClassification_weights['ttbb']} * score_ttbb > {evtClassification_weights['ttcj']} * score_ttcj && {evtClassification_weights['ttbb']} * score_ttbb > {evtClassification_weights['ttLF']} * score_ttLF",
+                #    "fscore_ttbj"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttbj']} * score_ttbj > {evtClassification_weights['ttbb']} * score_ttbb && {evtClassification_weights['ttbj']} * score_ttbj > {evtClassification_weights['ttcc']} * score_ttcc && {evtClassification_weights['ttbj']} * score_ttbj > {evtClassification_weights['ttcj']} * score_ttcj && {evtClassification_weights['ttbj']} * score_ttbj > {evtClassification_weights['ttLF']} * score_ttLF",
+                #    "fscore_ttcc"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttcc']} * score_ttcc > {evtClassification_weights['ttbb']} * score_ttbb && {evtClassification_weights['ttcc']} * score_ttcc > {evtClassification_weights['ttbj']} * score_ttbj && {evtClassification_weights['ttcc']} * score_ttcc > {evtClassification_weights['ttcj']} * score_ttcj && {evtClassification_weights['ttcc']} * score_ttcc > {evtClassification_weights['ttLF']} * score_ttLF",
+                #    "fscore_ttcj"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttcj']} * score_ttcj > {evtClassification_weights['ttbb']} * score_ttbb && {evtClassification_weights['ttcj']} * score_ttcj > {evtClassification_weights['ttbj']} * score_ttbj && {evtClassification_weights['ttcj']} * score_ttcj > {evtClassification_weights['ttcc']} * score_ttcc && {evtClassification_weights['ttcj']} * score_ttcj > {evtClassification_weights['ttLF']} * score_ttLF",
+                #    "fscore_ttLF"  : f"{eventClassificationBaseSelection} && {CR_selection} && {evtClassification_weights['ttLF']} * score_ttLF > {evtClassification_weights['ttbb']} * score_ttbb && {evtClassification_weights['ttLF']} * score_ttLF > {evtClassification_weights['ttbj']} * score_ttbj && {evtClassification_weights['ttLF']} * score_ttLF > {evtClassification_weights['ttcc']} * score_ttcc && {evtClassification_weights['ttLF']} * score_ttLF > {evtClassification_weights['ttcj']} * score_ttcj"
+                #}
+                #adhoc_binning = {
+                #    "score_tt_Wcb" : np.array([0.,0.9,1.]),
+                #    "fscore_ttbb"  : np.array([0.,0,0.7,1.]),
+                #    "fscore_ttbj"  : np.array([0.,0.45,1.]),
+                #    "fscore_ttcc"  : np.array([0.,0.45,1.]),
+                #    "fscore_ttcj"  : np.array([0.,0.35,1.]),
+                #    "fscore_ttLF"  : np.array([0.,0.1,1.]),
+                #}
 
             # Create histograms for each branch
             final_df = dict()
@@ -283,14 +286,10 @@ if __name__ == "__main__":
                  "ttLF" : " && tt_category==0 && higgs_decay==0 && wcb==0"
     }
 
-    # These weights correspond (roughly) to the fraction of events of a certain process expected in the corresponding category after the ttWcb score selection.
-    evtClassification_weights = {"ttLF" : "0.537",
-                                 #"ttcc" : "0.018",
-                                 "ttcc" : "0.09",
-                                 "ttcj" : "0.116",
-                                 "ttbb" : "0.071",
-                                 "ttbj" : "0.156"
-    }
+    # These weights correspond (roughly) to the fraction of events of a certain process expected in the corresponding category after the ttWcb and ttLF score selection.
+    #from weights_and_constants import weights_and_constants
+    #wc = weights_and_constants()
+    #evtClassification_weights = wc.weights_0p6ttWcb_and_0p1ttLF
 
     # Apply trigger selection to separate channels if requested
     if args.electron:

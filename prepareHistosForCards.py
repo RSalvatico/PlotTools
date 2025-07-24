@@ -8,7 +8,7 @@ from colorama import Fore, Style
 
 ROOT.ROOT.EnableImplicitMT()
 
-def process_trees(input_files, output_files, tree_name, year, selections, adhoc_selection, systematics):
+def process_trees(input_files, output_files, tree_name, year, selections, adhoc_selection, adhoc_binning, systematics):
     """
     Processes multiple TTrees, converts them to multiple TH1Ds for specified branches, and saves them to ROOT files.
 
@@ -87,7 +87,7 @@ def process_trees(input_files, output_files, tree_name, year, selections, adhoc_
                 if not "data" in infile:
                     print(f"Event weight: {Fore.GREEN}{weight}{Style.RESET_ALL}")
                     df_selected = df_selected.Define(weight_column, weight)
-                else: # Keep the weight 1 for collision data
+                else: # Keep the weight == 1 for collision data
                     df_selected = df_selected.Define(weight_column, "1")
 
                 final_df = dict()
@@ -103,9 +103,9 @@ def process_trees(input_files, output_files, tree_name, year, selections, adhoc_
                     if not syst == "None":
                         hist_name = f"{hist_name}_{syst}"
 
-                    final_df[score] = df_selected.Filter(adhoc_sel[0])
+                    final_df[score] = df_selected.Filter(adhoc_sel)
 
-                    hist = final_df[score].Histo1D((f"{hist_name}", f"Histogram of {score} for process {hist_name}", len(adhoc_sel[1])-1, adhoc_sel[1]), score, weight_column)
+                    hist = final_df[score].Histo1D((f"{hist_name}", f"Histogram of {score} for process {hist_name}", len(adhoc_binning[score])-1, adhoc_binning[score]), score, weight_column)
                     hist.Write()
 
                     print(f"Saved histograms to: {outfile}\n")
@@ -209,18 +209,10 @@ if __name__ == "__main__":
                  "ttLF" : " && tt_category==0 && higgs_decay==0 && wcb==0"
     }
 
-    eventClassificationBaseSelection = "score_tt_Wcb > 0.6 && score_ttLF < 0.05"
-    SR_selection = "score_tt_Wcb > 0.85"
-    CR_selection = "score_tt_Wcb < 0.85"
-    adhoc_selection = {
-        "score_tt_Wcb" : [f"{eventClassificationBaseSelection} && {SR_selection}", np.array([0.,0.9,1.])],
-        "fscore_ttbb"  : [f"{eventClassificationBaseSelection} && {CR_selection} && score_ttbb > score_ttbj && score_ttbb > score_ttcc && score_ttbb > score_ttcj && score_ttbb > score_ttLF", np.array([0.,0.3,0.4,0.5,0.6,1.])],
-        "fscore_ttbj"  : [f"{eventClassificationBaseSelection} && {CR_selection} && score_ttbj > score_ttbb && score_ttbj > score_ttcc && score_ttbj > score_ttcj && score_ttbj > score_ttLF", np.array([0.,0.3,0.35,0.4,0.5,1.])],
-        "fscore_ttcc"  : [f"{eventClassificationBaseSelection} && {CR_selection} && score_ttcc > score_ttbb && score_ttcc > score_ttbj && score_ttcc > score_ttcj && score_ttcc > score_ttLF", np.array([0.,0.3,0.35,0.4,1.])],
-        "fscore_ttcj"  : [f"{eventClassificationBaseSelection} && {CR_selection} && score_ttcj > score_ttbb && score_ttcj > score_ttbj && score_ttcj > score_ttcc && score_ttcj > score_ttLF", np.array([0.,0.3,1.])],
-        "fscore_ttLF"  : [f"{eventClassificationBaseSelection} && {CR_selection} && score_ttLF > score_ttbb && score_ttLF > score_ttbj && score_ttLF > score_ttcc && score_ttLF > score_ttcj", np.array([0.,0.2,1.])]
-    }
-
+    from weights_and_constants import adhoc_selection, adhoc_binning
+    adhoc_selection = adhoc_selection.copy()
+    adhoc_binning = adhoc_binning.copy()
+    
     # Apply trigger selection to separate channels if requested
     if args.electron:
         selections["base"] += " && passTrigEl"
@@ -245,4 +237,4 @@ if __name__ == "__main__":
                    "CMS_JES%sUp" % year : "flavTagWeight_JES_UP/flavTagWeight",
                    "CMS_JES%sDown" % year : "flavTagWeight_JES_DOWN/flavTagWeight"}    
 
-    process_trees(input_files, output_files, args.tree_name, args.year, selections, adhoc_selection, systematics)
+    process_trees(input_files, output_files, args.tree_name, args.year, selections, adhoc_selection, adhoc_binning, systematics)
