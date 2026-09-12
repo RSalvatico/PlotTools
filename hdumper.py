@@ -205,6 +205,8 @@ def process_tree(infile, outfile, tree_name, hist_configs, year, selections, eve
             weight_column = f"weight_{selection_name}_{syst}"
             if not "data" in infile and not "Data" in infile:
                 print(f"Event weight: {weight}")
+                #if "dps" in infile:
+                #    weight = weight + "*4.52"
                 df_weighted = df.Define(weight_column, weight)
             else:
                 df_weighted = df.Define(weight_column, "1.")  # Set collision data weight to 1
@@ -391,7 +393,7 @@ def merge_files(directory, input_files, output_file):
 
 def produce_systematics(year, suffix):
 
-       systematics = {"None" : "", 
+    systematics = {"None" : "", 
                    #Pileup and lepton efficiencies
                    "CMS_pileup_%sUp"   % year  : "puWeightUp/puWeight", 
                    "CMS_pileup_%sDown" % year  : "puWeightDown/puWeight",
@@ -655,7 +657,7 @@ def produce_systematics(year, suffix):
                    "PS_isr_X2XG_cNS_%sDown" %year : f"PSWeight[42]*PSWeightNorm{suffix}[42]",
                    "PS_isr_X2XG_cNS_%sUp"   %year : f"PSWeight[43]*PSWeightNorm{suffix}[43]",
                }
-    
+               
     return systematics
     
 if __name__ == "__main__":

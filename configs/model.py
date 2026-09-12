@@ -44,6 +44,7 @@ SIGNAL = ["tt-vcb"]
 
 BACKGROUNDS = [
     "singletop", "ttbb", "ttbj", "tt2b", "ttbb-dps", "ttbj-dps", "tt2b-dps",
+    #"singletop", "ttbb", "ttbj", "tt2b",
     "ttcc", "ttcj", "tt2c", "ttLF", "wjets", "ttZ", "ttW", "diboson",
     "ttHbb", "ttHcc",
 ]
@@ -55,6 +56,23 @@ TT_COMPONENTS_MAIN_BKG_NODPS = [
 ]
 TT_COMPONENTS_BBDPS = ["ttbb-dps", "ttbj-dps", "tt2b-dps"]
 TTH_COMPONENTS = ["ttHbb", "ttHcc"]
+
+
+def disable_dps():
+    """Drop the tt+bb DPS split (ttbb-dps, ttbj-dps, tt2b-dps) from the process
+    list, in place.
+
+    Call this once, before read_shapes(), when the shapes file's ttbar
+    simulation is 5FS-only: 5FS MC has no separate double-parton-shower
+    component, so the merged shapes file carries no histograms for the -dps
+    processes at all, and validate() would otherwise reject them as declared
+    processes with no nominal. norm_ttbb-dps then targets an empty process
+    list and lnN_systematics() drops it automatically.
+    """
+    global BACKGROUNDS, ALL_PROCESSES, TT_COMPONENTS_BBDPS
+    BACKGROUNDS = [p for p in BACKGROUNDS if p not in TT_COMPONENTS_BBDPS]
+    ALL_PROCESSES = SIGNAL + BACKGROUNDS
+    TT_COMPONENTS_BBDPS = []
 
 
 # --------------------------------------------------------------------------
@@ -71,7 +89,7 @@ def lnN_systematics(year):
     """name -> (kappa, [processes]). Mirrors prepareDatacards.py."""
     if str(year) != "2024":
         raise ValueError(f"lnN systematics are only defined for 2024, got {year}")
-    return {
+    all_systs = {
         # Values copied from Datacards_*/orig/Vcb_SL_2024.txt. They were wrong
         # here for norm_singletop, norm_wjets, norm_diboson and norm_ttZ, which
         # removed real freedom from the fit (singletop is 7.4% of the CR
@@ -85,6 +103,9 @@ def lnN_systematics(year):
         "norm_diboson": (1.30, ["diboson"]),
         "norm_wjets": (1.30, ["wjets"]),
     }
+    # A kappa targeting no process (e.g. norm_ttbb-dps after disable_dps())
+    # is a nuisance with nothing to do; drop it rather than declare a no-op.
+    return {name: v for name, v in all_systs.items() if v[1]}
 
 
 # Processes whose normalisation the fit can move appreciably. Used as the safety

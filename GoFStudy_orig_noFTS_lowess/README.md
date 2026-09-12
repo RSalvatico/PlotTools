@@ -37,6 +37,31 @@ parallelism -- for anything bigger (this study's actual target is 50k toys
 per config), use the HTCondor path below instead of scaling `JOBS` up
 locally.
 
+## DPS-scaled cross-check (togglable)
+
+`./run_dps_scaled.sh` repeats only the two **observed** fits (`CR_observed`,
+`SR_observed`) -- plus their prepostfit and impacts -- with the tt+bb DPS
+processes `ttbb-dps`, `ttbj-dps`, `tt2b-dps` and every one of their systematic
+variations scaled up in the simulation. The scale is one knob, `DPS_SCALE`
+(default `4.5`), passed straight to `prepareTensor.py --dps-scale`; the output
+name carries a matching tag so nominal and scaled results never collide:
+
+```
+cd GoFStudy_orig_noFTS_lowess
+./run_dps_scaled.sh                 # DPS_SCALE=4.5 -> rabbit/{CR,SR}_observed_dps4p5.hdf5
+DPS_SCALE=1 ./run_dps_scaled.sh     # no-op scale; cross-check against run_all.sh
+```
+
+`--dps-scale` multiplies the nominal template and every variation leg of those
+three processes by the factor and their bin variances by the factor squared, so
+the relative MC-stat error and every relative systematic on them are unchanged
+-- only their absolute normalisation moves. The related `norm_ttbb-dps` lnN is a
+relative kappa and is left as is. Factor `1.0` is a genuine no-op: the tensor is
+bit-for-bit what `run_all.sh` builds. `run_all.sh` itself is untouched and stays
+the nominal reference; `run_dps_scaled.sh` writes none of its files. Same
+blinding discipline as `run_all.sh` (SR unblinds tt-vcb in the fit, impacts
+`--redact tt-vcb`, no SR data marker, fitted value never printed).
+
 ## Run at scale (50k toys) via HTCondor
 
 `run_all.sh` still does everything through the postfit-conditioned tensors

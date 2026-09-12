@@ -39,16 +39,19 @@ set -e
 
 BASE=$(cd "$(dirname "$0")" && pwd)
 cd "${BASE}"
+#O=rabbit_5FS
 O=rabbit
 mkdir -p ${O} plots/prepostfit plots/impacts
 
-SHAPES=../Datacards_250826_preUnblinding/orig/Vcb_SL_2024_shapes.root
+#SHAPES=../datacards_07042026_correctTTweights_5FS/Vcb_SL_2024_shapes.root
+SHAPES=../datacards_07042026_correctTTweights/Vcb_SL_2024_shapes.root
 PM="--paramModel Mu --paramModel analysis.rabbit_models.FreeNorm ttbb,ttbj,tt2b,ttcc,ttcj,tt2c,ttLF"
 FULL="--doImpacts --globalImpacts --saveHists --saveHistsPerProcess --computeHistErrors"
 POIS="tt-vcb xsec_ttbb xsec_ttbj xsec_tt2b xsec_ttcc xsec_ttcj xsec_tt2c xsec_ttLF"
 JOBS=${JOBS:-16}
 TOYS=${TOYS:-5000}
 TOYS_PER_JOB=$(( (TOYS + JOBS - 1) / JOBS ))
+NPARAMS_IMPACTS=1000
 
 # ------------------------------------------------------------------ [1/7] tensors
 echo "### [1/7] tensors (lowess smoothing + flavTag mirror-up off -- prepareTensor.py defaults)"
@@ -101,7 +104,7 @@ for CFG in CR_expected CR_observed SR_expected SR_observed; do
     for POI in ${POIS}; do
         for IT in traditional global; do
             python3 ../analysis/rabbitPlotImpacts.py ${O}/${CFG}.hdf5 --poi ${POI} \
-                -o plots/impacts --postfix ${CFG} --impact-type ${IT} \
+                -o plots/impacts --postfix ${CFG} --impact-type ${IT} -n ${NPARAMS_IMPACTS}\
                 "${ASI[@]}" "${REDACT[@]}" > /dev/null 2>&1
         done
     done
@@ -131,6 +134,12 @@ chans = fr['mappings']['BaseMapping']['channels']
 check = np.zeros_like(raw)
 postfit = np.zeros_like(raw)
 for ch, info in indata.channel_info.items():
+    # Masked channels (e.g. the SR in the CR-only fit) carry no data_obs in
+    # either the tensor's data_obs vector or the fitresult's per-channel
+    # hists -- they are pure prediction. Skip them; there is nothing to
+    # condition and chans[ch] has no 'hist_data_obs' key.
+    if info.get('masked', False):
+        continue
     s, e = info['start'], info['stop']
     check[s:e] = chans[ch]['hist_data_obs'].get().values().flatten()
     postfit[s:e] = chans[ch]['hist_postfit_inclusive'].get().values().flatten()

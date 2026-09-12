@@ -14,6 +14,14 @@
 #   python3 ../analysis/plotToyGoF.py --npz rabbit/toyGoF_CR_observed_summary.npz \
 #       --observed rabbit/CR_observed.hdf5 -o plots/toyGoF_CR_observed.png
 #
+# Job output (condor dir, collected summaries) lands under O (default
+# "rabbit"); override with e.g. O=rabbit_5FS for a different tensor/fit
+# namespace (such as the 5FS-only ttbar datacard) so it never collides with
+# another study's toy batches of the same CR_observed/SR_observed names:
+#   O=rabbit_5FS ./submit_toys_condor.sh CR_observed rabbit_5FS/ourCR_postfitmean.hdf5 \
+#       observed "--freezeParameters tt-vcb --unblind xsec_.*"
+#   O=rabbit_5FS ./submit_toys_condor.sh --collect CR_observed
+#
 # Do NOT pass --paramModel in <extra flags> -- PM below already provides it;
 # doubling it crashes rabbit's fitter with "Duplicate parameter names"
 # (hit and fixed once already building run_all.sh, see git log).
@@ -32,7 +40,7 @@
 set -e
 BASE=$(cd "$(dirname "$0")" && pwd)
 cd "${BASE}"
-O=rabbit
+O=${O:-rabbit}
 PM="--paramModel Mu --paramModel analysis.rabbit_models.FreeNorm ttbb,ttbj,tt2b,ttcc,ttcj,tt2c,ttLF"
 
 # --------------------------------------------------------------- collect mode
@@ -87,7 +95,14 @@ set -e
 SCRATCH=\$(pwd)
 K=\$1
 cd ${CMSSW_SRC} && eval \`scramv1 runtime -sh\`
-cd ${PT} && source setup.sh > /dev/null 2>&1 && source setup_rabbit.sh > /dev/null 2>&1
+cd ${PT} && source setup.sh > /dev/null 2>&1
+# 'getenv = True' carries RABBIT_ACTIVE in from the submit shell, which makes
+# setup_rabbit.sh early-return without re-activating -- and 'scramv1 runtime'
+# just above has already pushed CMSSW's python 3.9 ahead of the venv in PATH.
+# rabbit_fit.py then runs under that python, which sees cvmfs tensorflow but not
+# the venv-only tensorflow_probability. Force a real re-activation.
+unset RABBIT_ACTIVE
+source setup_rabbit.sh > /dev/null 2>&1
 cd "\${SCRATCH}"
 N=toyGoF_${NAME}_batch\${K}
 rabbit_fit.py ${TENSOR_ABS} -o . --outname \${N} \\

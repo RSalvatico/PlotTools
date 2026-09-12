@@ -18,9 +18,13 @@
 #
 #   cmsenv && source setup.sh && source setup_rabbit.sh
 #   cd GoFStudy_orig_noFTS_lowess
-#   ./run_gof_toys_lean.sh CR_observed rabbit/ourCR_postfitmean.hdf5 observed \
+#   ./run_gof_toys_lean.sh CR_observed ourCR_postfitmean.hdf5 observed \
 #       "--freezeParameters tt-vcb --unblind xsec_.*"
-#   ./run_gof_toys_lean.sh SR_expected rabbit/ourSR.hdf5 expected ""
+#   ./run_gof_toys_lean.sh SR_expected ourSR.hdf5 expected ""
+#
+# TENSOR is resolved relative to the output dir O (default "rabbit"; override
+# with e.g. O=rabbit_5FS ./run_gof_toys_lean.sh ... to run against a
+# different tensor/fit set, such as the 5FS-only ttbar datacard).
 
 set -e
 
@@ -29,7 +33,7 @@ NAME=$1 TENSOR=$2 MODE=$3 EXTRA=$4
 
 BASE=$(cd "$(dirname "$0")" && pwd)
 cd "${BASE}"
-O=rabbit
+O=${O:-rabbit}
 PM="--paramModel Mu --paramModel analysis.rabbit_models.FreeNorm ttbb,ttbj,tt2b,ttcc,ttcj,tt2c,ttLF"
 JOBS=${JOBS:-16}
 TOYS=${TOYS:-5000}

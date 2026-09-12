@@ -25,7 +25,10 @@ from rabbit import io_tools
 from configs import model as M
 from analysis.rabbitPlotStyle import cms_label, group_stack, region_label
 
-def collect(result, fittype, channels, show_signal_data=False):
+# suggested factor for --dps-scale; scaling is off (1.0) unless requested.
+DPS_SCALE_DEFAULT = 4.52
+
+def collect(result, fittype, channels, show_signal_data=False, dps_scale=1.0):
     """Concatenate every channel: per-process yields, total, its error, data.
 
     The SR is blinded by default: an Asimov fit run with the SR unmasked
@@ -38,11 +41,19 @@ def collect(result, fittype, channels, show_signal_data=False):
         c = result[ch]
         inc = c[f"hist_{fittype}_inclusive"].get()
         n = inc.values().flatten()
-        total.append(n)
-        err.append(np.sqrt(np.abs(inc.variances().flatten())))
         h = c[f"hist_{fittype}"].get()
+        # the inclusive total doesn't know about the DPS scaling applied to the
+        # stack below, so shift it by the same amount to keep the ratio panel
+        # (data / total) consistent with what's actually drawn in the stack.
+        dps_delta = np.zeros_like(n)
         for p in [str(x) for x in np.array(h.axes["processes"])]:
-            stack.setdefault(p, []).append(h[{"processes": p}].values().flatten())
+            vals = h[{"processes": p}].values().flatten()
+            if "dps" in p.lower() and dps_scale != 1.0:
+                dps_delta = dps_delta + (dps_scale - 1) * vals
+                vals = vals * dps_scale
+            stack.setdefault(p, []).append(vals)
+        total.append(n + dps_delta)
+        err.append(np.sqrt(np.abs(inc.variances().flatten())))
         d = c["hist_data_obs"].get() if "hist_data_obs" in c.keys() else None
         vals = d.values().flatten() if d is not None else np.full(len(n), np.nan)
         if ch in M.SIGNAL_REGIONS and not show_signal_data:
@@ -70,7 +81,7 @@ def draw(path, stack, total, err, data, bounds, channels, fittype, logy,
     a.fill_between(edges, np.append(total - err, (total - err)[-1]),
                    np.append(total + err, (total + err)[-1]), step="post",
                    facecolor="none", edgecolor="k", hatch="////", linewidth=0,
-                   alpha=0.6, label="Stat. uncertainty")
+                   alpha=0.6, label="Total uncertainty")
     ok = np.isfinite(data)
     dlabel = "Asimov" if asimov else "Data"
     a.errorbar(x[ok], data[ok], yerr=np.sqrt(np.maximum(data[ok], 0)), fmt="ko",
@@ -85,14 +96,17 @@ def draw(path, stack, total, err, data, bounds, channels, fittype, logy,
     r.errorbar(x[ok], (data / safe)[ok], yerr=(np.sqrt(np.maximum(data, 0)) / safe)[ok],
                fmt="ko", ms=4, lw=1.2, zorder=3)
     if prefit_total is not None:
-        pre_ratio = prefit_total / safe
-        pre_band = prefit_err / safe
-        r.fill_between(edges, np.append(pre_ratio - pre_band, (pre_ratio - pre_band)[-1]),
-                       np.append(pre_ratio + pre_band, (pre_ratio + pre_band)[-1]),
+        # red line: prefit data/MC ratio (MC = prefit sum of processes)
+        # red band: prefit MC relative stat. uncertainty, centered on 1
+        pre_safe = np.where(prefit_total > 0, prefit_total, np.nan)
+        pre_ratio = data / pre_safe
+        pre_band = prefit_err / pre_safe
+        r.fill_between(edges, np.append(1 - pre_band, (1 - pre_band)[-1]),
+                       np.append(1 + pre_band, (1 + pre_band)[-1]),
                        step="post", facecolor="#cc2222", edgecolor="none",
                        alpha=0.18, zorder=1)
         r.step(edges, np.append(pre_ratio, pre_ratio[-1]), where="post",
-               color="#cc2222", lw=1.3, zorder=2, label="Pre-fit bkg.")
+               color="#cc2222", lw=1.3, zorder=2, label="Pre-fit data / pred.")
 
     for b in bounds[:-1]:
         for ax in (a, r):
@@ -115,8 +129,11 @@ def draw(path, stack, total, err, data, bounds, channels, fittype, logy,
     band = (err / safe)[np.isfinite(err / safe)]
     extra = []
     if prefit_total is not None:
-        pre_dev = np.abs(prefit_total / safe - 1.0)
-        extra.append(pre_dev[np.isfinite(pre_dev)])
+        pre_safe = np.where(prefit_total > 0, prefit_total, np.nan)
+        pre_resid = np.abs((data / pre_safe)[ok] - 1.0) if ok.any() else np.array([])
+        pre_rel = prefit_err / pre_safe
+        extra.extend([pre_resid[np.isfinite(pre_resid)],
+                      pre_rel[np.isfinite(pre_rel)]])
     spread = max([0.0] + [np.nanmax(a_) for a_ in (resid, band, *extra) if a_.size])
     half = max(spread * 1.35, 0.05)
     r.set_ylim(1 - half, 1 + half)
@@ -132,7 +149,7 @@ def draw(path, stack, total, err, data, bounds, channels, fittype, logy,
     hlabels = hlabels[:n_groups][::-1] + hlabels[n_groups:]
     if prefit_total is not None:
         handles.append(Line2D([0], [0], color="#cc2222", lw=1.5))
-        hlabels.append("Pre-fit bkg.")
+        hlabels.append("Pre-fit data / pred.")
     a.legend(handles, hlabels, fontsize=10, ncol=5, frameon=False, loc="lower left",
              bbox_to_anchor=(0, 1.10, 1, 0.2), mode="expand", borderaxespad=0)
 
@@ -170,6 +187,11 @@ def main():
                         "Off by default: the SR is blinded here regardless of the "
                         "fit's own blinding state, so this is an explicit opt-in for "
                         "a fit whose SR data is meant to be shown.")
+    p.add_argument("--dps-scale", type=float, default=1.0, nargs="?",
+                   const=DPS_SCALE_DEFAULT,
+                   help="scale processes with 'dps' in their name (e.g. tt2b-dps) "
+                        f"by this factor. Off by default (1.0); bare flag uses "
+                        f"{DPS_SCALE_DEFAULT}.")
     args = p.parse_args()
 
     fitresult = io_tools.get_fitresult(args.fitresult, result=args.result)
@@ -183,7 +205,8 @@ def main():
             print(f"  no {fittype} histograms in {args.fitresult}")
             continue
         stack, total, err, data, bounds = collect(result, fittype, channels,
-                                                   show_signal_data=args.show_signal_data)
+                                                   show_signal_data=args.show_signal_data,
+                                                   dps_scale=args.dps_scale)
         pre_kwargs = {}
         if fittype == "postfit" and prefit_cache is not None:
             pre_kwargs = dict(prefit_total=prefit_cache[0], prefit_err=prefit_cache[1])

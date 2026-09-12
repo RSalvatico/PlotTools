@@ -42,6 +42,14 @@ the stored flavTag down leg as-is (no `--flavtag-mirror`). To get the OLD
 defaults (spline smoothing, rebuilt flavTag down leg), pass
 `--smoothing-method spline --flavtag-mirror` explicitly.
 
+`--dps-scale FACTOR` (default `1.0`, a no-op) multiplies the yield of the tt+bb
+DPS processes `ttbb-dps, ttbj-dps, tt2b-dps` -- nominal and every systematic
+variation leg -- by `FACTOR`, emulating a change to their simulated cross
+section; bin variances scale as `FACTOR**2`, so every relative uncertainty on
+those processes is preserved. See
+`GoFStudy_orig_noFTS_lowess/run_dps_scaled.sh` for the CR+SR observed fits at
+`DPS_SCALE=4.5`.
+
 ## Manual: one fit, then impacts / pre-postfit / scan / GoF toys
 
 Build a tensor and fit it (SR unmasked here; add `--mask '_SR$'` for a

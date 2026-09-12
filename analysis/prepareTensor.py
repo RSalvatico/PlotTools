@@ -189,6 +189,59 @@ def validate(edges, data, nominal, variations, unknown, args, report):
 
 
 # --------------------------------------------------------------------------
+# 0.3 process yield scaling (togglable; off at factor 1.0)
+# --------------------------------------------------------------------------
+
+def scale_processes(nominal, variations, args, report):
+    """Multiply the yield of the tt+bb DPS processes by ``args.dps_scale``.
+
+    Emulates a change to the cross section of ``ttbb-dps``, ``ttbj-dps`` and
+    ``tt2b-dps`` in the simulation: every nominal template and every systematic
+    variation leg of those processes is scaled by the same constant. Bin
+    variances are scaled by ``factor**2`` (a larger event weight, same MC
+    statistics), so the relative MC-stat error and every relative systematic on
+    these processes are preserved -- only their absolute normalisation moves.
+    The related ``norm_ttbb-dps`` lnN is a relative kappa and needs no change.
+
+    Runs after validate() (so sentinel bins are already restored to 0 and are
+    not perturbed) and before every downstream test, so the scaled templates go
+    through no-op detection, classification, smoothing and the relevance cut
+    exactly like any other input. Factor 1.0 is a no-op and leaves the tensor
+    bit-for-bit identical to a run without the flag.
+    """
+    f = args.dps_scale
+    procs = set(M.TT_COMPONENTS_BBDPS)
+    if f == 1.0:
+        report["process_scaling"] = {"factor": 1.0, "processes": [],
+                                     "note": "disabled (--dps-scale 1.0)"}
+        print("  process yield scaling disabled (--dps-scale 1.0)")
+        return
+    if f <= 0.0:
+        raise SystemExit(f"--dps-scale must be positive, got {f}")
+
+    n_nom = n_leg = 0
+    for (cat, proc), arrs in nominal.items():
+        if proc not in procs:
+            continue
+        arrs[0] = arrs[0] * f
+        arrs[1] = arrs[1] * f * f
+        n_nom += 1
+    for (cat, proc, syst), legs in variations.items():
+        if proc not in procs:
+            continue
+        for arrs in legs.values():
+            arrs[0] = arrs[0] * f
+            arrs[1] = arrs[1] * f * f
+            n_leg += 1
+
+    report["process_scaling"] = {"factor": f, "processes": sorted(procs),
+                                 "nominal_templates_scaled": n_nom,
+                                 "variation_legs_scaled": n_leg}
+    print(f"  scaled {sorted(procs)} by {f}: "
+          f"{n_nom} nominal templates, {n_leg} variation legs")
+
+
+# --------------------------------------------------------------------------
 # 0 no-ops
 # --------------------------------------------------------------------------
 
@@ -798,6 +851,22 @@ def make_parser():
     p.add_argument("--outname", default="Vcb_tensor", help="output file name without extension")
     p.add_argument("--year", default="2024")
 
+    p.add_argument("--dps-scale", type=float, default=1.0,
+                   help="scale the yield of the tt+bb DPS processes "
+                        f"({', '.join(M.TT_COMPONENTS_BBDPS)}) -- nominal AND every "
+                        "systematic variation leg -- by this factor, emulating a "
+                        "change to their cross section in the simulation. 1.0 "
+                        "(default) is a no-op. MC-stat variance scales as "
+                        "factor**2, so the relative MC-stat error and every "
+                        "relative systematic on these processes are unchanged; "
+                        "only their absolute normalisation moves.")
+    p.add_argument("--no-dps", action="store_true",
+                   help="the shapes file's ttbar simulation is 5FS-only, so it has "
+                        f"no separate DPS components ({', '.join(M.TT_COMPONENTS_BBDPS)}). "
+                        "Drops them from the declared process list (and norm_ttbb-dps) "
+                        "before validation, instead of failing with 'no nominal for "
+                        "declared process ttbb-dps'.")
+
     p.add_argument("--p-shape", type=float, default=0.05,
                    help="treat as normalisation only if the shape is flat with p > this")
     p.add_argument("--thr-total", type=float, default=1e-3,
@@ -872,6 +941,12 @@ def make_parser():
 
 def main():
     args = make_parser().parse_args()
+    if args.no_dps and args.dps_scale != 1.0:
+        raise SystemExit("--no-dps and --dps-scale are mutually exclusive: there "
+                          "is no DPS process left to scale once it is dropped")
+    if args.no_dps:
+        M.disable_dps()
+
     report = {"input": os.path.abspath(args.shapes), "settings": vars(args)}
     dec = defaultdict(dict)
 
@@ -881,6 +956,9 @@ def main():
 
     print("[0.2] validate")
     validate(edges, data, nominal, variations, unknown, args, report)
+
+    print("[0.3] process yield scaling")
+    scale_processes(nominal, variations, args, report)
 
     print("[0] no-ops")
     drop_noops(nominal, variations, report, dec)
